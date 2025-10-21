@@ -1,5 +1,6 @@
 ﻿using StringAnalyzer.Models;
 using StringAnalyzer.Utils;
+using System.Text.RegularExpressions;
 namespace StringAnalyzer.Repositories
 {
     public class StringRepository : IStringRepository
@@ -19,7 +20,7 @@ namespace StringAnalyzer.Repositories
                 using (var context = new ApiContext())
                 {
                     string strValue = stringValue.ToLower();
-                    string palindromeString = strValue.Replace(" ", "").Replace(",", "").Replace(".", "").Replace("!", "").Replace("?", "").Replace(";", "").Replace(":", "").Replace("-", "").Replace("_", "").Replace("'", "");
+                    string palindromeString = Regex.Replace(strValue.Replace(" ", ""), "[^a-zA-Z0-9]", "");
 
                     StringProperty newStringProperty = new StringProperty()
                     {
@@ -70,8 +71,7 @@ namespace StringAnalyzer.Repositories
             {
                 using (var context = new ApiContext())
                 {
-                    ICollection<StringProperty> stringProperties = context.StringProperties.ToList<StringProperty>();
-                    return stringProperties;
+                    return context.StringProperties.ToList();
                 }
             }
             catch (Exception ex)

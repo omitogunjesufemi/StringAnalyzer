@@ -24,7 +24,7 @@ namespace StringAnalyzer.Controllers
         {
             if (requestBody == null)
             {
-                return StatusCode(StatusCodes.Status400BadRequest, $"Invalid request body or missing \"value\" field");
+                return StatusCode(StatusCodes.Status400BadRequest, "Invalid request body or missing \"value\" field");
             }
 
             string value = requestBody.value;
@@ -103,67 +103,93 @@ namespace StringAnalyzer.Controllers
 
             if (min_length.HasValue && min_length > 0)
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.Length >= min_length);
+            else
+                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
 
             if (max_length.HasValue && max_length > 0)
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.Length <= min_length);
+                filteredStringProperties = filteredStringProperties.Where(sp => sp.Length <= max_length);
+            else
+                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
 
             if (word_count.HasValue && word_count > 0)
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.WordCount == word_count);
+            else
+                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
 
             if (!string.IsNullOrEmpty(contains_character) && contains_character.Length == 1)
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.CharacterFrequencyMap.ContainsKey(contains_character[0]));
+            else
+                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+
 
             var allStringAnalyses = filteredStringProperties.Select(stringProperty => new
-            {
-                id = stringProperty.Id,
-                value = stringProperty.Value,
-                properties = new
                 {
-                    length = stringProperty.Length,
-                    is_palindrome = stringProperty.IsPalindrome,
-                    unique_characters = stringProperty.UniqueCharacters,
-                    word_count = stringProperty.WordCount,
-                    sha256_hash = stringProperty.Sha256Hash,
-                    character_frequency_map = stringProperty.CharacterFrequencyMap,
-                },
-                created_at = stringProperty.CreatedAt
-            });
+                    id = stringProperty.Id,
+                    value = stringProperty.Value,
+                    properties = new
+                    {
+                        length = stringProperty.Length,
+                        is_palindrome = stringProperty.IsPalindrome,
+                        unique_characters = stringProperty.UniqueCharacters,
+                        word_count = stringProperty.WordCount,
+                        sha256_hash = stringProperty.Sha256Hash,
+                        character_frequency_map = stringProperty.CharacterFrequencyMap,
+                    },
+                    created_at = stringProperty.CreatedAt
+                });
 
-            return Ok(allStringAnalyses);
+            return Ok(new
+            {
+                data = allStringAnalyses.ToList(),
+                count = allStringAnalyses.Count(),
+                filters_applied = new
+                {
+                    is_palindrome = bool.Parse(is_palindrome),
+                    min_length,
+                    max_length,
+                    word_count,
+                    contains_character
+                }
+            });
         }
 
         [HttpGet("filter-by-natural-language")]
         public IActionResult GetStringAnalysisByNaturalLanguageFilter([FromQuery] string query)
         {
-            if (string.IsNullOrEmpty(query))
+            if (string.IsNullOrWhiteSpace(query))
                 return StatusCode(StatusCodes.Status400BadRequest, "Unable to parse natural language query");
-
-            //NameValueCollection queryString = HttpUtility.ParseQueryString(query);
-            //if (queryString.Count == 0)
-            //    return StatusCode(StatusCodes.Status400BadRequest, "Unable to parse natural language query");
 
             ICollection<StringProperty> ? stringProperties = _stringRepository.GetAllStringAnalysis();
             var filteredStringProperties = stringProperties.AsQueryable();
 
-            if (query == "all single word palindromic strings")
+            Dictionary<string, object> parsedFilters = new();
+
+            switch(query.Trim().ToLower())
             {
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome.ToString().ToLower() == "true" && sp.WordCount == 1);
-            }
-            else if (query == "strings longer than 10 characters")
-            {
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.Length > 10);
-            }
-            else if (query == "palindromic strings that contain the first vowel")
-            {
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome.ToString().ToLower() == "true" && sp.CharacterFrequencyMap.ContainsKey('a'));
-            }
-            else if (query == "strings containing the letter z")
-            {
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.CharacterFrequencyMap.ContainsKey('z'));
-            }
-            else
-            {
-                return StatusCode(StatusCodes.Status400BadRequest, "Unable to parse natural language query");
+                case "all single word palindromic strings":
+                    filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome.ToString().ToLower() == "true" && sp.WordCount == 1);
+                    parsedFilters["is_palindrome"] = true;
+                    parsedFilters["word_count"] = 1;
+                    break;
+
+                case "strings longer than 10 characters":
+                    filteredStringProperties = filteredStringProperties.Where(sp => sp.Length > 10);
+                    parsedFilters["min_length"] = 11;
+                    break;
+
+                case "palindromic strings that contain the first vowel":
+                    filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome.ToString().ToLower() == "true" && sp.CharacterFrequencyMap.ContainsKey('a'));
+                    parsedFilters["is_palindrome"] = true;
+                    parsedFilters["contains_character"] = "a";
+                    break;
+
+                case "strings containing the letter z":
+                    filteredStringProperties = filteredStringProperties.Where(sp => sp.CharacterFrequencyMap.ContainsKey('z'));
+                    parsedFilters["contains_character"] = "z";
+                    break;
+
+                default:
+                    return StatusCode(StatusCodes.Status400BadRequest, "Unable to parse natural language query");
             }
 
             var allStringAnalyses = filteredStringProperties.Select(stringProperty => new
@@ -182,7 +208,16 @@ namespace StringAnalyzer.Controllers
                 created_at = stringProperty.CreatedAt
             });
 
-            return Ok(allStringAnalyses);
+            return Ok(new
+            {
+                data = allStringAnalyses.ToList(),
+                count = allStringAnalyses.Count(),
+                interpreted_query = new
+                {
+                    original = query,
+                    parsed_filters = parsedFilters
+                }
+            });
         }
 
         [Route("{string_value}")]
@@ -198,33 +233,6 @@ namespace StringAnalyzer.Controllers
             _stringRepository.DeleteStringAnalysis(string_value);
 
             return StatusCode(StatusCodes.Status204NoContent);
-        }
-
-        [Route("all")]
-        [HttpGet]
-        public IActionResult GetAllStringAnalysis()
-        {
-            ICollection<StringProperty>? stringProperties = _stringRepository.GetAllStringAnalysis();
-            if (stringProperties == null || stringProperties.Count == 0)
-            {
-                return StatusCode(StatusCodes.Status404NotFound, "No strings exist in the system");
-            }
-            var allStringAnalyses = stringProperties.Select(stringProperty => new
-            {
-                id = stringProperty.Id,
-                value = stringProperty.Value,
-                properties = new
-                {
-                    length = stringProperty.Length,
-                    is_palindrome = stringProperty.IsPalindrome,
-                    unique_characters = stringProperty.UniqueCharacters,
-                    word_count = stringProperty.WordCount,
-                    sha256_hash = stringProperty.Sha256Hash,
-                    character_frequency_map = stringProperty.CharacterFrequencyMap,
-                },
-                created_at = stringProperty.CreatedAt
-            });
-            return Ok(allStringAnalyses);
         }
     }
 }
