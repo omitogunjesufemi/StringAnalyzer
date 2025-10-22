@@ -36,7 +36,7 @@ namespace StringAnalyzer.Utils
 
                 foreach (byte b in hashBytes)
                 {
-                    hashStringBuilder.Append(b.ToString("X2"));
+                    hashStringBuilder.Append(b.ToString("X2").ToLower());
                 }
 
                 return hashStringBuilder.ToString();

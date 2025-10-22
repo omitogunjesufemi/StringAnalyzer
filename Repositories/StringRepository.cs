@@ -19,14 +19,14 @@ namespace StringAnalyzer.Repositories
             {
                 using (var context = new ApiContext())
                 {
-                    string strValue = stringValue.ToLower();
+                    string strValue = stringValue.Trim().ToLower();
                     string palindromeString = Regex.Replace(strValue.Replace(" ", ""), "[^a-zA-Z0-9]", "");
-                    string sha256Id = StringUtils.GenerateSHA256HashValue(stringValue);
+                    string sha256Id = StringUtils.GenerateSHA256HashValue(stringValue.Trim());
 
                     StringProperty newStringProperty = new StringProperty()
                     {
                         Id = sha256Id,
-                        Value = stringValue,
+                        Value = stringValue.Trim(),
                         Length = stringValue.Length,
                         IsPalindrome = StringUtils.IsPalindrome(palindromeString),
                         UniqueCharacters = StringUtils.UniqueCharacterCount(palindromeString),
