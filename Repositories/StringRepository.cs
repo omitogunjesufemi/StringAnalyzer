@@ -21,16 +21,17 @@ namespace StringAnalyzer.Repositories
                 {
                     string strValue = stringValue.ToLower();
                     string palindromeString = Regex.Replace(strValue.Replace(" ", ""), "[^a-zA-Z0-9]", "");
+                    string sha256Id = StringUtils.GenerateSHA256HashValue(stringValue);
 
                     StringProperty newStringProperty = new StringProperty()
                     {
-                        Id = StringUtils.GenerateSHA256HashValue(stringValue),
+                        Id = sha256Id,
                         Value = stringValue,
                         Length = stringValue.Length,
                         IsPalindrome = StringUtils.IsPalindrome(palindromeString),
                         UniqueCharacters = StringUtils.UniqueCharacterCount(palindromeString),
                         WordCount = StringUtils.WordCount(strValue),
-                        Sha256Hash = StringUtils.GenerateSHA256HashValue(stringValue),
+                        Sha256Hash = sha256Id,
                         CharacterFrequencyMap = StringUtils.CharacterFrequency(palindromeString),
                         CreatedAt = DateTime.Now,
                     };

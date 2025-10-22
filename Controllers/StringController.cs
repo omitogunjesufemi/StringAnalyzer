@@ -86,9 +86,15 @@ namespace StringAnalyzer.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAllStringsByFilter([FromQuery] string? is_palindrome, [FromQuery] int? min_length, [FromQuery] int? max_length, [FromQuery] int? word_count, [FromQuery] string? contains_character )
+        public IActionResult GetAllStringsByFilter(
+            [FromQuery] string? is_palindrome, 
+            [FromQuery] int? min_length, 
+            [FromQuery] int? max_length, 
+            [FromQuery] int? word_count, 
+            [FromQuery] string? contains_character )
         {
             ICollection<StringProperty>? stringProperties = _stringRepository.GetAllStringAnalysis();
+            
             if (stringProperties == null || stringProperties.Count == 0)
             {
                 return StatusCode(StatusCodes.Status404NotFound, "No strings exist in the system");
@@ -96,32 +102,58 @@ namespace StringAnalyzer.Controllers
             
             var filteredStringProperties = stringProperties.AsQueryable();
 
-            if (!string.IsNullOrEmpty(is_palindrome) && (is_palindrome == "true" || is_palindrome == "false"))
-                filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome.ToString().ToLower() == is_palindrome.ToLower());
-            else
-                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+            Dictionary<string, object> filtersApplied = new();
 
-            if (min_length.HasValue && min_length > 0)
+            bool? isPalindromeBool = null;
+            if (!string.IsNullOrEmpty(is_palindrome))
+            {
+                if (is_palindrome.ToLower() == "true")
+                    isPalindromeBool = true;
+                else if (is_palindrome.ToLower() == "false")
+                    isPalindromeBool = false;
+                else
+                    return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+
+                filteredStringProperties = filteredStringProperties.Where(sp => sp.IsPalindrome == isPalindromeBool);
+                filtersApplied["is_palindrome"] = isPalindromeBool;
+            }
+
+            if (min_length.HasValue)
+            {
+                if (min_length < 0)
+                    return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.Length >= min_length);
-            else
-                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+                filtersApplied["min_length"] = min_length;
+            }
 
-            if (max_length.HasValue && max_length > 0)
+            if (max_length.HasValue)
+            {
+                if (max_length < 0)
+                    return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+                
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.Length <= max_length);
-            else
-                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+                filtersApplied["max_length"] = max_length;
+            }
+            
+            if (word_count.HasValue)
+            {
+                if (word_count < 0)
+                    return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
 
-            if (word_count.HasValue && word_count > 0)
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.WordCount == word_count);
-            else
-                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+                filtersApplied["word_count"] = word_count;
+            }
 
-            if (!string.IsNullOrEmpty(contains_character) && contains_character.Length == 1)
+            if (!string.IsNullOrEmpty(contains_character))
+            {
+                if (contains_character.Length < 1)
+                    return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
+
                 filteredStringProperties = filteredStringProperties.Where(sp => sp.CharacterFrequencyMap.ContainsKey(contains_character[0]));
-            else
-                return StatusCode(StatusCodes.Status400BadRequest, "Invalid query parameter values or types");
-
-
+                filtersApplied["contains_character"] = contains_character;
+            }
+                
             var allStringAnalyses = filteredStringProperties.Select(stringProperty => new
                 {
                     id = stringProperty.Id,
@@ -142,14 +174,7 @@ namespace StringAnalyzer.Controllers
             {
                 data = allStringAnalyses.ToList(),
                 count = allStringAnalyses.Count(),
-                filters_applied = new
-                {
-                    is_palindrome = bool.Parse(is_palindrome),
-                    min_length,
-                    max_length,
-                    word_count,
-                    contains_character
-                }
+                filters_applied = filtersApplied
             });
         }
 
